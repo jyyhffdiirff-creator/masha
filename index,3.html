@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Для Маши ❤</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; min-height: 100vh; min-height: 100dvh; overflow: hidden; background: #06010c; font-family: "Georgia", "Times New Roman", serif; }
+  canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; }
+
+  /* стартовый экран */
+  #start {
+    position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 26px; cursor: pointer;
+    color: #ffd9ea; transition: opacity 1.4s ease, transform 1.4s ease, filter 1.4s ease;
+  }
+  #start.hide { opacity: 0; transform: scale(1.25); filter: blur(10px); pointer-events: none; }
+  #start .env {
+    font-size: 88px; filter: drop-shadow(0 0 22px #ff3d8b);
+    animation: floaty 3.2s ease-in-out infinite, glow 2.4s ease-in-out infinite;
+  }
+  #start p { font-size: 20px; text-align: center; line-height: 1.5; opacity: 0; animation: fadeUp 1.6s .4s ease forwards; }
+  #start small { display: block; font-size: 14px; opacity: .6; margin-top: 6px; animation: pulse 2s ease-in-out infinite; }
+  @keyframes floaty { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-14px) rotate(4deg); } }
+  @keyframes glow { 0%,100% { filter: drop-shadow(0 0 14px #ff3d8b); } 50% { filter: drop-shadow(0 0 34px #ff7ab0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: .85; } }
+
+  /* текст */
+  #text { position: fixed; left: 0; right: 0; bottom: 8%; z-index: 4; text-align: center; pointer-events: none; padding: 0 18px; }
+  #name {
+    font-size: clamp(56px, 17vw, 116px); font-style: italic; font-weight: bold; color: #ffb3d4;
+    text-shadow: 0 0 10px #ff4d94, 0 0 30px #ff2d7a, 0 0 70px #b3005c;
+    animation: breathe 4s ease-in-out infinite;
+  }
+  #name .word span {
+    display: inline-block; opacity: 0; filter: blur(14px);
+    transform: translateY(30px) scale(.6);
+    transition: opacity 1.2s ease, filter 1.2s ease, transform 1.4s cubic-bezier(.2,1.4,.35,1);
+  }
+  #name .word span.on { opacity: 1; filter: blur(0); transform: none; }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+  #line {
+    margin-top: 12px; font-size: clamp(18px, 5vw, 26px); color: #ffeaf3; line-height: 1.35;
+    min-height: 4em; text-shadow: 0 0 12px rgba(255,77,148,.9);
+    transition: opacity .9s ease, filter .9s ease, transform .9s ease;
+  }
+  #line.out { opacity: 0; filter: blur(8px); transform: translateY(-10px); }
+  .word { display: inline-block; white-space: nowrap; }
+  #line .word span {
+    display: inline-block; opacity: 0; filter: blur(6px); transform: translateY(8px);
+    transition: opacity .7s ease, filter .7s ease, transform .7s ease;
+  }
+  #line .word span.on { opacity: 1; filter: blur(0); transform: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="start">
+  <div class="env">💌</div>
+  <p>Маша, тебе письмо…<small>нажми на конверт</small></p>
+</div>
+
+<div id="text">
+  <div id="name"></div>
+  <div id="line"></div>
+</div>
+
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W, H, DPR, S, CX, CY;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const r = cv.getBoundingClientRect();
+  W = Math.round(r.width) || innerWidth; H = Math.round(r.height) || innerHeight;
+  if (cv.width === W * DPR && cv.height === H * DPR) return;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  S = Math.min(W, H * 0.8) / 38;
+  CX = W / 2; CY = H * 0.37;
+}
+resize();
+addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 300));
+addEventListener('load', resize);
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(document.documentElement);
+setInterval(resize, 500); // на случай, если браузер не сообщил об изменении размера
+
+// ---------- заготовка светящейся точки (рисуется один раз — плавнее на телефоне) ----------
+function makeSprite(r, g, b) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, `rgba(255,255,255,1)`);
+  gr.addColorStop(.18, `rgba(${r},${g},${b},.95)`);
+  gr.addColorStop(.45, `rgba(${r},${g},${b},.25)`);
+  gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+  return c;
+}
+const sprites = [makeSprite(255, 60, 140), makeSprite(255, 120, 180), makeSprite(255, 80, 200), makeSprite(255, 170, 200)];
+const starSprite = makeSprite(200, 200, 255);
+
+// ---------- звёзды (3 слоя для глубины) ----------
+const stars = Array.from({ length: 170 }, () => ({
+  x: Math.random(), y: Math.random(), z: Math.random(),
+  p: Math.random() * 6.28, s: .4 + Math.random() * 1.4
+}));
+let shooting = null;
+
+// ---------- сердце ----------
+function heartXY(t) {
+  return {
+    x: 16 * Math.pow(Math.sin(t), 3),
+    y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
+  };
+}
+const N = 950;
+const parts = [];
+for (let i = 0; i < N; i++) {
+  const t = Math.random() * Math.PI * 2;
+  const h = heartXY(t);
+  const edge = Math.random() < .62;
+  const f = edge ? .96 + Math.random() * .08 : Math.sqrt(Math.random()) * .9;
+  // старт — по спирали вокруг центра
+  const a = Math.random() * 6.28, d = 300 + Math.random() * 500;
+  parts.push({
+    x: innerWidth / 2 + Math.cos(a) * d, y: innerHeight * .37 + Math.sin(a) * d,
+    vx: 0, vy: 0, hx: h.x * f, hy: h.y * f,
+    size: (edge ? 9 : 6) + Math.random() * 9, spr: sprites[i % 4],
+    ph: Math.random() * 6.28, delay: Math.random() * 1.4
+  });
+}
+
+// ---------- плавающие сердечки ----------
+const floaters = [];
+function heartPath(c, s) {
+  c.beginPath();
+  c.moveTo(0, s * .3);
+  c.bezierCurveTo(0, 0, -s * .5, 0, -s * .5, s * .3);
+  c.bezierCurveTo(-s * .5, s * .6, 0, s * .78, 0, s);
+  c.bezierCurveTo(0, s * .78, s * .5, s * .6, s * .5, s * .3);
+  c.bezierCurveTo(s * .5, 0, 0, 0, 0, s * .3);
+}
+function addFloater(x, y, burst) {
+  const s = 7 + Math.random() * 13;
+  floaters.push({
+    x, y, s, vy: burst ? -(60 + Math.random() * 90) : -(25 + Math.random() * 35),
+    vx: burst ? (Math.random() - .5) * 120 : 0,
+    sw: Math.random() * 6.28, sws: .8 + Math.random() * 1.2, rot: (Math.random() - .5) * .6,
+    life: 0, max: burst ? 2.5 : 9 + Math.random() * 4, hue: 325 + Math.random() * 30
+  });
+}
+
+// ---------- искры ----------
+const sparks = [];
+function burst(x, y, n = 50) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.28, v = 40 + Math.random() * 180;
+    sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: .45 + Math.random() * .5, spr: sprites[(Math.random() * 4) | 0] });
+  }
+}
+
+// ---------- плавные функции ----------
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// двойной удар «тук-тук», мягкий
+function heartbeat(t) {
+  const p = (t % 1.25) / 1.25;
+  const b1 = Math.exp(-Math.pow((p - .10) / .055, 2));
+  const b2 = Math.exp(-Math.pow((p - .30) / .065, 2)) * .65;
+  return b1 + b2;
+}
+
+// ---------- главный цикл ----------
+let started = false, t0 = 0, last = performance.now(), spawnAcc = 0, burstAcc = 0, time = 0;
+
+function frame(now) {
+  let dt = Math.min((now - last) / 1000, 1 / 30);
+  last = now; time += dt;
+  const el = started ? (now - t0) / 1000 : 0;
+
+  // фон — мягкий «дышащий» градиент
+  ctx.globalCompositeOperation = 'source-over';
+  const bg = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.max(W, H) * .9);
+  const glowA = started ? clamp(el / 3, 0, 1) * (.22 + heartbeat(el) * .08) : .05;
+  bg.addColorStop(0, `rgba(90,10,55,${glowA + .05})`);
+  bg.addColorStop(.45, 'rgba(25,4,35,1)');
+  bg.addColorStop(1, 'rgba(6,1,12,1)');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  ctx.globalCompositeOperation = 'lighter';
+
+  // звёзды с лёгким параллаксом
+  for (const s of stars) {
+    s.p += dt * s.s;
+    const a = (.25 + .75 * (.5 + .5 * Math.sin(s.p))) * (.3 + s.z * .7);
+    const sx = (s.x * W + time * (4 + s.z * 10)) % W;
+    const sz = 3 + s.z * 7;
+    ctx.globalAlpha = a;
+    ctx.drawImage(starSprite, sx - sz / 2, s.y * H - sz / 2, sz, sz);
+  }
+
+  // падающая звезда
+  if (!shooting && Math.random() < dt * .15) {
+    shooting = { x: Math.random() * W * .7, y: Math.random() * H * .3, life: 0 };
+  }
+  if (shooting) {
+    shooting.life += dt;
+    const k = shooting.life / 1.1;
+    const x = shooting.x + k * W * .5, y = shooting.y + k * H * .25;
+    const grad = ctx.createLinearGradient(x, y, x - 120, y - 60);
+    grad.addColorStop(0, `rgba(255,255,255,${(1 - k) * .9})`);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = 1; ctx.strokeStyle = grad; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 120, y - 60); ctx.stroke();
+    if (k >= 1) shooting = null;
+  }
+
+  if (started) {
+    const beat = 1 + heartbeat(el) * .075 + Math.sin(el * 1.3) * .012;
+    const appear = clamp(el / 1.2, 0, 1);
+
+    // частицы сердца — пружинная физика, без рывков
+    for (const p of parts) {
+      const local = clamp((el - p.delay) / 2.5, 0, 1);
+      if (local <= 0) {
+        // до старта медленно кружат вокруг
+        const ang = Math.atan2(p.y - CY, p.x - CX) + dt * .6;
+        const d = Math.hypot(p.x - CX, p.y - CY);
+        p.x = CX + Math.cos(ang) * d; p.y = CY + Math.sin(ang) * d;
+      } else {
+        const wob = 1.6 + (1 - easeOut(local)) * 20;
+        const tx = CX + p.hx * S * beat + Math.sin(time * 1.3 + p.ph) * wob;
+        const ty = CY + p.hy * S * beat + Math.cos(time * 1.1 + p.ph) * wob;
+        const k = 10 + easeOut(local) * 30;   // жёсткость пружины
+        const damp = Math.pow(.0009, dt);     // затухание
+        p.vx = (p.vx + (tx - p.x) * k * dt) * damp;
+        p.vy = (p.vy + (ty - p.y) * k * dt) * damp;
+        p.x += p.vx * dt * 6; p.y += p.vy * dt * 6;
+      }
+      const tw = .55 + .45 * Math.sin(time * 2.2 + p.ph);
+      const sz = p.size * (.75 + tw * .35) * (1 + heartbeat(el) * .15);
+      ctx.globalAlpha = appear * (.35 + tw * .45);
+      ctx.drawImage(p.spr, p.x - sz / 2, p.y - sz / 2, sz, sz);
+    }
+
+    // искры
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.vx *= Math.pow(.25, dt); s.vy = s.vy * Math.pow(.25, dt) + 60 * dt;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.life -= s.decay * dt;
+      if (s.life <= 0) { sparks.splice(i, 1); continue; }
+      const sz = 14 * s.life;
+      ctx.globalAlpha = s.life;
+      ctx.drawImage(s.spr, s.x - sz / 2, s.y - sz / 2, sz, sz);
+    }
+
+    // новые сердечки и салюты
+    if (el > 2.2) {
+      spawnAcc += dt;
+      while (spawnAcc > .28) { spawnAcc -= .28; addFloater(Math.random() * W, H + 30, false); }
+      burstAcc += dt;
+      if (burstAcc > 3.5) { burstAcc = 0; burst(W * (.15 + Math.random() * .7), H * (.08 + Math.random() * .25), 45); }
+    }
+  }
+
+  // плавающие сердечки
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i];
+    f.life += dt; f.sw += dt * f.sws;
+    f.vy = f.vy * Math.pow(.8, dt) - 6 * dt;
+    f.vx *= Math.pow(.3, dt);
+    f.x += (f.vx + Math.sin(f.sw) * 22) * dt; f.y += f.vy * dt;
+    const fadeIn = clamp(f.life / .8, 0, 1), fadeOut = clamp((f.max - f.life) / 1.5, 0, 1);
+    const a = fadeIn * fadeOut * .85;
+    if (a <= 0 && f.life > 1 || f.y < -40) { floaters.splice(i, 1); continue; }
+    ctx.save();
+    ctx.translate(f.x, f.y); ctx.rotate(Math.sin(f.sw) * f.rot);
+    ctx.globalAlpha = a;
+    ctx.shadowColor = `hsl(${f.hue},100%,60%)`; ctx.shadowBlur = 12;
+    ctx.fillStyle = `hsl(${f.hue},90%,68%)`;
+    heartPath(ctx, f.s); ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- текст ----------
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const nameEl = document.getElementById('name');
+const lineEl = document.getElementById('line');
+const lines = [
+  "Как бы ни было трудно тебе, я всегда верю в тебя и в твои маленькие победы 🩷"
+];
+
+// буквы появляются по одной, но слова не разрываются при переносе строки
+function splitInto(el, text) {
+  el.innerHTML = '';
+  const letters = [];
+  text.split(' ').forEach((word, wi) => {
+    if (wi > 0) el.appendChild(document.createTextNode(' '));
+    const w = document.createElement('span');
+    w.className = 'word';
+    Array.from(word).forEach(ch => {
+      const s = document.createElement('span'); s.textContent = ch; w.appendChild(s); letters.push(s);
+    });
+    el.appendChild(w);
+  });
+  return letters;
+}
+
+async function runText() {
+  await wait(2200);
+  const letters = splitInto(nameEl, 'Маша');
+  for (const l of letters) { l.classList.add('on'); await wait(260); }
+  await wait(1400);
+  let i = 0;
+  while (true) {
+    lineEl.classList.remove('out');
+    const spans = splitInto(lineEl, lines[i % lines.length]);
+    for (const s of spans) { s.classList.add('on'); await wait(45); }
+    if (lines.length === 1) return; // одна фраза — остаётся на экране
+    await wait(3200);
+    lineEl.classList.add('out');
+    await wait(1000);
+    i++;
+  }
+}
+
+// ---------- старт ----------
+const start = document.getElementById('start');
+function go() {
+  if (started) return;
+  started = true; t0 = performance.now();
+  start.classList.add('hide');
+  setTimeout(() => start.remove(), 1500);
+  burst(W / 2, H / 2, 70);
+  runText();
+}
+start.addEventListener('click', go);
+start.addEventListener('touchstart', go, { passive: true });
+
+// тап — салют и сердечки
+addEventListener('pointerdown', e => {
+  if (!started || performance.now() - t0 < 600) return;
+  burst(e.clientX, e.clientY, 40);
+  for (let i = 0; i < 6; i++) addFloater(e.clientX, e.clientY, true);
+});
+</script>
+</body>
+</html>
