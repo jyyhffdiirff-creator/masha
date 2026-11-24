@@ -1,0 +1,52 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Смотри</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#c{position:fixed;inset:0;width:100vw;height:100dvh;display:block}
+#t{position:fixed;left:0;right:0;bottom:12vh;text-align:center;font-family:"Courier New",monospace;color:#ffd6e7;font-size:clamp(18px,5.6vmin,32px);letter-spacing:.06em;text-shadow:0 0 16px #ff3d8b,0 0 4px #000;opacity:0;transition:opacity 2s;padding:0 6vw}
+#t small{display:block;margin-top:.6em;font-size:.55em;color:#e9d9ff;letter-spacing:.2em}
+#go{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#d9d2c3;font-family:"Courier New",monospace;letter-spacing:.2em;cursor:pointer;transition:opacity .8s;background:#000}</style></head><body>
+<canvas id="c"></canvas><div id="t">Ты моё сокровище</div><div id="go">[ открыть глаза ]</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');let W,H,D,cw,chh,cols,rows,started=false,t0=0,last=0;
+const SET='JjrfLCQ0zXYUvczx/\\|()1{}[]?-_+~<>i!lI;:,"^`\'.';const WORD='МАША';const STAR='+|-·*';
+function rs(){const r=c.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(devicePixelRatio||1,2);c.width=W*D;c.height=H*D;x.setTransform(D,0,0,D,0,0);cw=Math.max(7,W/58);chh=cw*1.5;cols=Math.ceil(W/cw);rows=Math.ceil(H/chh);mask()}
+const hash=(a,b,k)=>{let h=Math.sin(a*127.1+b*311.7+k*74.7)*43758.5;return h-Math.floor(h)};
+const ease=t=>t<0?0:t>1?1:t*t*(3-2*t);
+let WM=null;function mask(){const m=document.createElement('canvas');m.width=cols;m.height=rows;const g=m.getContext('2d');g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
+ let fs=cols*.2;g.font=`900 ${fs}px Arial,sans-serif`;g.strokeStyle='#fff';g.lineWidth=fs*.06;g.fillText('МАША',cols/2,rows/2);g.strokeText('МАША',cols/2,rows/2);WM=g.getImageData(0,0,cols,rows).data}
+function heart(u,v){u*=1.15;v=-v*1.15+.1;const a=u*u+v*v-1;return a*a*a-u*u*v*v*v}
+function frame(n){requestAnimationFrame(frame);if(n-last<33)return;last=n;const T=started?(n/1000-t0):0;
+ x.fillStyle='#000';x.fillRect(0,0,W,H);x.font=`bold ${cw*1.15}px "Courier New",monospace`;x.textAlign='center';x.textBaseline='middle';
+ const open=ease((T-1.2)/1.6)-(T>5&&T<5.35?Math.sin((T-5)/.35*Math.PI)*.9:0);
+ const z=1+Math.pow(ease((T-4)/11),1.4)*5.5; // zoom into pupil
+ const hz=ease((T-11)/4); // heart grows
+ const wz=ease((T-15)/1.5); // word МАША
+ const S=Math.min(W,H)*.46, k=Math.floor(n/140);
+ for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
+  const px=(i+.5)*cw,py=(j+.5)*chh;let u=(px-W/2)/S/z,v=(py-H/2)/S/z;
+  const r=Math.hypot(u,v);let ch,col,a=1;
+  const lid=.55*Math.cos(Math.min(1,Math.abs(u))*Math.PI/2)*open;
+  const inEye=Math.abs(u)<1&&Math.abs(v)<lid;
+  if(!started){continue}
+  if(!inEye){ // skin: striped warm text
+   const band=(Math.sin(v*38+u*2)+1)/2;ch=SET[(hash(i,j,k)*SET.length)|0];
+   const dist=Math.abs(v)-lid;const g=Math.min(1,(T-.2)/1.5);
+   col=band>.5?`rgba(255,${170+band*60|0},80,${(.35+band*.6)*g})`:`rgba(235,225,215,${(.25+band*.5)*g})`;
+   if(dist<.03&&open>.05){col=`rgba(255,240,220,${g})`}
+  } else if(r<.22){ // pupil: dark with stars, heart later
+   const hv=heart(u/.17*(1/(.3+hz*.7)),v/.17*(1/(.3+hz*.7)));
+   if(hz>0&&hv<0){ch=WORD[(i+j)%4];col=`rgba(255,${70+hash(i,j,1)*80|0},150,${hz})`;if(wz>0){if(WM[(j*cols+i)*4]>100){col=`rgba(255,255,255,${wz})`;ch=WORD[(i+j)%4]}else{col=`rgba(255,${70+hash(i,j,1)*80|0},150,${hz*(1-wz*.55)})`}}}
+   else{const s=hash(i,j,Math.floor(k/3));if(s>.93){ch=STAR[(s*97|0)%5];col='rgba(255,255,255,.95)'}else if(s>.86){ch='.';col='rgba(200,200,255,.5)'}else continue}
+  } else if(r<.46){ // iris
+   const ang=Math.atan2(v,u);const rad=(Math.sin(ang*22)+1)/2;const q=(r-.22)/.24;
+   ch=SET[(hash(i,j,k)*20)|0];
+   col=`rgb(${255},${120+q*110+rad*20|0},${30+q*40|0})`;
+   if(q>.92)col='#5a2a00';
+  } else { // sclera
+   const s=hash(i,j,k);ch=s>.6?'-':s>.3?'.':':';col=`rgba(240,235,230,${.45+.4*Math.abs(v)/Math.max(lid,.01)*0})`;
+   if(Math.abs(v)>lid*.82)col='rgba(180,150,140,.7)'}
+  x.fillStyle=col;x.fillText(ch,px,py)}
+ // red glow centre at end
+ if(hz>0){const g=x.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.min(W,H)*.5);g.addColorStop(0,`rgba(255,40,120,${.18*hz})`);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,W,H)}
+ if(T>17)document.getElementById('t').style.opacity=1}
+document.getElementById('go').onclick=function(){this.style.opacity=0;setTimeout(()=>this.remove(),800);started=true;t0=performance.now()/1000};
+rs();addEventListener('resize',rs);requestAnimationFrame(frame);
+</script></body></html>
